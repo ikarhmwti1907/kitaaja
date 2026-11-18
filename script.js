@@ -1,5 +1,5 @@
-const TABS=[["photo","📷 Foto"],["video","🎬 Video"],["song","🎵 Lagu"],["plan","📅 Jadwal"],["wish","🎁 Wishlist"]];
-let tab="photo",items=[],db=null,assets=null,canEdit=true;
+const TABS=[["album","📷 Galeri"],["song","🎵 Lagu"],["plan","📅 Jadwal"],["wish","🎁 Wishlist"]];
+let tab="album",items=[],db=null,assets=null,canEdit=true;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const safeUrl=u=>/^https?:\/\//i.test(u||"")?u:"";
@@ -36,21 +36,27 @@ async function upload(file){
   catch(e){note(e&&e.code==="unsupported_type"?"Jenis file ini belum didukung. Untuk lagu, gunakan tautan.":"Upload gagal (maks 20 MB per file).");return null}
 }
 async function del(id,assetId){
-  try{await db.doc("items/"+id).delete();if(assetId&&assets)assets.delete(assetId).catch(()=>{})}catch(e){note("Gagal menghapus.")}
+  const it=items.find(x=>x.id===id);
+  const ids=it&&Array.isArray(it.media)?it.media.map(m=>m.id):(assetId?[assetId]:[]);
+  try{await db.doc("items/"+id).delete();if(assets)ids.forEach(a=>assets.delete(a).catch(()=>{}))}catch(e){note("Gagal menghapus.")}
 }
 async function toggle(id,v){try{await db.doc("items/"+id).update({done:v})}catch(e){note("Gagal mengubah.")}}
 
 function renderForm(){
   const f=$("#form");
   if(!canEdit){f.innerHTML="";return}
-  if(tab==="photo"||tab==="video"){
-    const acc=tab==="photo"?"image/*":"video/*";
-    f.innerHTML=`<div class="bar"><input id="cap" placeholder="Keterangan (opsional)"><input id="file" type="file" accept="${acc}" multiple><button class="btn" id="go">Unggah ${tab==="photo"?"foto":"video"}</button></div>`;
+  if(tab==="album"){
+    const t0=new Date(),today=t0.getFullYear()+"-"+String(t0.getMonth()+1).padStart(2,"0")+"-"+String(t0.getDate()).padStart(2,"0");
+    f.innerHTML=`<div class="bar"><label style="flex-basis:100%">Judul / kegiatan<input id="a" placeholder="Contoh: Main ke Dago Dreampark"></label><label>Tanggal<input id="b" type="date" value="${today}"></label><label>Tempat<input id="c" placeholder="Contoh: Dago, Bandung"></label><label style="flex-basis:100%">Foto &amp; video (boleh pilih banyak sekaligus)<input id="file" type="file" accept="image/*,video/*" multiple></label><button class="btn" id="go">Simpan album</button></div>`;
     $("#go").onclick=async()=>{
-      const files=[...$("#file").files];if(!files.length){note("Pilih file dulu.");return}
-      const b=$("#go");b.disabled=true;b.textContent="Mengunggah...";
-      for(const fl of files){const r=await upload(fl);if(!r)break;await add({title:$("#cap").value.trim()||fl.name,assetId:r.id,url:r.url})}
-      b.disabled=false;b.textContent="Unggah";$("#file").value="";$("#cap").value="";
+      const t=$("#a").value.trim(),d=$("#b").value,files=[...$("#file").files];
+      if(!t||!d||!files.length){note("Isi judul, tanggal, dan pilih minimal 1 foto atau video.");return}
+      const b=$("#go");b.disabled=true;const media=[];let ok=true;
+      for(let k=0;k<files.length;k++){b.textContent="Mengunggah "+(k+1)+"/"+files.length+"...";const r=await upload(files[k]);if(!r){ok=false;break}media.push({id:r.id,kind:files[k].type.startsWith("video")?"video":"image",name:files[k].name})}
+      const saved=ok&&await add({title:t,date:d,place:$("#c").value.trim(),media});
+      if(saved){["a","c","file"].forEach(i=>$("#"+i).value="")}
+      else if(assets){media.forEach(m=>assets.delete(m.id).catch(()=>{}))}
+      b.disabled=false;b.textContent="Simpan album";
     };
   }else if(tab==="song"){
     f.innerHTML=`<div class="bar"><input id="a" placeholder="Judul lagu"><input id="b" placeholder="Artis"><input id="c" placeholder="Tautan (YouTube/Spotify), opsional"><button class="btn" id="go">Tambah lagu</button></div>`;
@@ -74,15 +80,15 @@ function renderForm(){
 }
 function render(){
   const n=t=>items.filter(i=>i.type===t).length;
-  $("#stats").innerHTML=`<span>📷 ${n("photo")} foto</span><span>🎬 ${n("video")} video</span><span>🎵 ${n("song")} lagu</span><span>📅 ${n("plan")} jadwal</span><span>🎁 ${n("wish")} wishlist</span>`;
+  $("#stats").innerHTML=`<span>📷 ${albumList().length} album</span><span>🎵 ${n("song")} lagu</span><span>📅 ${n("plan")} jadwal</span><span>🎁 ${n("wish")} wishlist</span>`;
   if(!$("#form").dataset.t||$("#form").dataset.t!==tab){renderForm();$("#form").dataset.t=tab}
-  const L=items.filter(i=>i.type===tab);
+  const L=tab==="album"?albumList():items.filter(i=>i.type===tab);
   const el=$("#list");
   if(!L.length){el.innerHTML='<div class="empty">Belum ada isinya.</div>';return}
   let h="";
-  if(tab==="photo"||tab==="video"){
-    L.sort((a,b)=>b.created-a.created);
-    h='<div class="grid">'+L.map(i=>`<div class="card">${tab==="photo"?`<img loading="lazy" src="${esc(i.url)}" alt="${esc(i.title)}">`:`<video controls preload="metadata" src="${esc(i.url)}"></video>`}<div class="cap">${esc(i.title)}</div><button class="x" data-del="${i.id}" data-a="${esc(i.assetId)}" title="Hapus">×</button></div>`).join("")+"</div>";
+  if(tab==="album"){
+    h='<div class="grid">'+L.map(a=>{const m=a.media[0];const cover=m.kind==="video"?`<video preload="metadata" muted playsinline src="${esc(m.url)}#t=0.1"></video><span class="play">▶</span>`:`<img loading="lazy" src="${esc(m.url)}" alt="${esc(a.title)}">`;
+      return `<div class="card" data-open="${a.id}"><div class="cov">${cover}<span class="dt">📅 ${esc(fmtD(a.date))}</span>${a.media.length>1?`<span class="cnt">${a.media.length} file</span>`:""}</div><div class="cap"><b>${esc(a.title)}</b>${a.place?`<br><small>📍 ${esc(a.place)}</small>`:""}</div><button class="x" data-del="${a.id}" data-a="${esc(a.legacyAsset||"")}" title="Hapus">×</button></div>`}).join("")+"</div>";
   }else if(tab==="song"){
     L.sort((a,b)=>b.created-a.created);
     h=L.map(i=>`<div class="row"><div style="font-size:1.4rem">♪</div><div class="grow"><div class="t">${esc(i.title)}</div><div class="m">${esc(i.artist)}${i.link?` · <a href="${esc(i.link)}" target="_blank" rel="noopener">Putar</a>`:""}</div></div><button class="xx" data-del="${i.id}">✕</button></div>`).join("");
@@ -98,10 +104,58 @@ function render(){
 let pend=null;
 function askDel(id,a,title){pend={id,a};$("#mt").textContent=title;$("#modal").hidden=false}
 function closeM(){$("#modal").hidden=true;pend=null}
-$("#list").addEventListener("click",e=>{const b=e.target.closest("[data-del]");if(!b)return;const it=items.find(x=>x.id===b.dataset.del);askDel(b.dataset.del,b.dataset.a,it?it.title:"")});
+$("#list").addEventListener("click",e=>{
+  const b=e.target.closest("[data-del]");
+  if(b){const it=albumList().find(x=>x.id===b.dataset.del)||items.find(x=>x.id===b.dataset.del);askDel(b.dataset.del,b.dataset.a,it?it.title:"");return}
+  const c=e.target.closest("[data-open]");if(c)openLb(c.dataset.open)});
 $("#no").onclick=closeM;
 $("#yes").onclick=()=>{if(pend){const p=pend;closeM();del(p.id,p.a)}};
 $("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeM()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeM()});
 $("#list").addEventListener("change",e=>{if(e.target.dataset.chk)toggle(e.target.dataset.chk,e.target.checked)});
+
+function fmtD(ds,long){if(!ds)return"";const d=new Date(ds+"T00:00");return long?d.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"}):d.toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric"})}
+function albumList(){
+  const out=[];
+  items.forEach(i=>{
+    if(i.type==="album"&&Array.isArray(i.media)&&i.media.length){out.push({...i,sort:(i.date||"")+String(i.created||0).padStart(15,"0")})}
+    else if(i.type==="photo"||i.type==="video"){
+      const d=new Date(i.created||Date.now()),ds=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+      out.push({id:i.id,title:i.title,date:ds,place:"",created:i.created,legacyAsset:i.assetId,media:[{id:i.assetId,kind:i.type==="photo"?"image":"video",url:i.url}],sort:ds+String(i.created||0).padStart(15,"0")});
+    }
+  });
+  return out.sort((a,b)=>b.sort.localeCompare(a.sort));
+}
+(function(){
+  const st=document.createElement("style");
+  st.textContent=`.card{cursor:pointer}.card .cov{position:relative}.card .dt{position:absolute;left:6px;bottom:6px;background:rgba(10,6,18,.72);color:#fff;border-radius:999px;padding:2px 10px;font-size:.72rem;font-weight:600}.card .cnt{position:absolute;top:6px;left:6px;background:var(--hero);color:#fff;border-radius:999px;padding:2px 10px;font-size:.72rem;font-weight:700}.card .play{position:absolute;inset:0;margin:auto;width:42px;height:42px;line-height:42px;text-align:center;border-radius:50%;background:rgba(10,6,18,.6);color:#fff;font-size:16px}.card .cap small{color:var(--mute)}
+#lb{position:fixed;inset:0;z-index:60;background:rgba(6,4,12,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 56px) 12px calc(env(safe-area-inset-bottom,0px) + 12px)}#lb[hidden]{display:none}
+#lb .stage{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}#lb .stage img,#lb .stage video{max-width:100%;max-height:100%;border-radius:12px;object-fit:contain}
+#lb .info{width:100%;max-width:640px;text-align:center;padding:14px 8px 6px;color:#f4eef8}#lb h3{margin:2px 0 6px;font-size:1.15rem}#lb .mt{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 16px;color:#d5c8e8;font-size:.9rem}#lb .ct{color:#ff8cc3;font-weight:700;font-size:.85rem;min-height:1.2em}
+#lb button{border:0;cursor:pointer;color:#fff;background:rgba(255,255,255,.14);border-radius:50%;width:44px;height:44px;font-size:22px;line-height:1}#lb .lbx{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px}#lb .lbn{position:absolute;top:42%}#lb .lbp{left:10px}#lb .lbq{right:10px}#lb.single .lbn{display:none}`;
+  document.head.appendChild(st);
+  const lb=document.createElement("div");lb.id="lb";lb.hidden=true;
+  lb.innerHTML='<button class="lbx" aria-label="Tutup">✕</button><button class="lbn lbp" aria-label="Sebelumnya">‹</button><div class="stage"></div><button class="lbn lbq" aria-label="Berikutnya">›</button><div class="info"><div class="ct"></div><h3></h3><div class="mt"></div></div>';
+  document.body.appendChild(lb);
+  const stage=lb.querySelector(".stage");let cur=null,idx=0,x0=null;
+  function show(){
+    const m=cur.media[idx];stage.innerHTML="";let el;
+    if(m.kind==="video"){el=document.createElement("video");el.controls=true;el.playsInline=true}else{el=document.createElement("img");el.alt=cur.title}
+    el.src=m.url;stage.appendChild(el);
+    lb.querySelector(".ct").textContent=cur.media.length>1?(idx+1)+" / "+cur.media.length:"";
+    lb.querySelector("h3").textContent=cur.title;
+    lb.querySelector(".mt").innerHTML='<span>📅 '+esc(fmtD(cur.date,true))+'</span>'+(cur.place?'<span>📍 '+esc(cur.place)+'</span>':"");
+    lb.classList.toggle("single",cur.media.length<2);
+  }
+  window.openLb=id=>{cur=albumList().find(a=>a.id===id);if(!cur)return;idx=0;show();lb.hidden=false;document.body.style.overflow="hidden"};
+  function closeLb(){lb.hidden=true;stage.innerHTML="";document.body.style.overflow="";cur=null}
+  function go(d){if(!cur)return;idx=(idx+d+cur.media.length)%cur.media.length;show()}
+  lb.querySelector(".lbx").onclick=closeLb;
+  lb.querySelector(".lbp").onclick=()=>go(-1);
+  lb.querySelector(".lbq").onclick=()=>go(1);
+  lb.addEventListener("click",e=>{if(e.target===lb||e.target===stage)closeLb()});
+  lb.addEventListener("touchstart",e=>{x0=e.target.tagName==="VIDEO"?null:e.touches[0].clientX},{passive:true});
+  lb.addEventListener("touchend",e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0;x0=null;if(Math.abs(dx)>50)go(dx<0?1:-1)});
+  document.addEventListener("keydown",e=>{if(lb.hidden)return;if(e.key==="Escape")closeLb();else if(e.key==="ArrowRight")go(1);else if(e.key==="ArrowLeft")go(-1)});
+})();
 init();
