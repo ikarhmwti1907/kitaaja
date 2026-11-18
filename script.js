@@ -1,5 +1,5 @@
 const TABS=[["photo","📷 Foto"],["video","🎬 Video"],["song","🎵 Lagu"],["plan","📅 Jadwal"],["wish","🎁 Wishlist"]];
-let tab="photo",items=[],db=null,assets=null,canEdit=false;
+let tab="photo",items=[],db=null,assets=null,canEdit=true;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const safeUrl=u=>/^https?:\/\//i.test(u||"")?u:"";
@@ -7,9 +7,10 @@ function note(t){const n=$("#note");n.textContent=t;n.hidden=!t}
 
 async function init(){
   renderTabs();render();
+  if(typeof claude==="undefined"){note("File storage.js tidak ditemukan. Pastikan storage.js ikut diunggah ke GitHub, satu folder dengan index.html.");return}
   try{
     const c=await claude.use("db");
-    if(!c){note("Masuk ke akun Claude Anda untuk melihat isi halaman ini.");return}
+    if(!c){note("Penyimpanan browser tidak bisa dipakai. Coba keluar dari mode penyamaran.");return}
     db=c;
     try{const u=await claude.use("user");canEdit=!!(u&&u.canEdit())}catch(e){}
     $("#form").dataset.t="";
@@ -17,7 +18,7 @@ async function init(){
     const timer=setTimeout(()=>note("Memuat data terlalu lama. Coba muat ulang halaman."),10000);
     db.collection("items").onSnapshot(s=>{clearTimeout(timer);items=s.docs.map(d=>({id:d.id,...d.data()}));render()},
       e=>{clearTimeout(timer);note("Data tidak bisa dibaca.")});
-  }catch(e){note("Penyimpanan tidak tersedia saat ini.")}
+  }catch(e){note("Penyimpanan browser tidak tersedia. Coba keluar dari mode penyamaran.")}
   render();
 }
 function renderTabs(){
@@ -27,7 +28,7 @@ function renderTabs(){
 async function add(data){
   if(!db){note("Hanya pemilik halaman yang bisa menambah data.");return false}
   try{await db.collection("items").add({...data,type:tab,created:Date.now()});note("");return true}
-  catch(e){note("Gagal menyimpan. Hanya pemilik atau editor yang bisa menambah data.");return false}
+  catch(e){note("Gagal menyimpan. Coba keluar dari mode penyamaran, atau ruang penyimpanan browser mungkin penuh.");return false}
 }
 async function upload(file){
   if(!assets){note("Upload hanya tersedia untuk pemilik/editor halaman.");return null}
@@ -77,7 +78,7 @@ function render(){
   if(!$("#form").dataset.t||$("#form").dataset.t!==tab){renderForm();$("#form").dataset.t=tab}
   const L=items.filter(i=>i.type===tab);
   const el=$("#list");
-  if(!L.length){el.innerHTML='<div class="empty">Belum ada isinya.</div>';return}
+  if(!L.length){el.innerHTML='<div class="empty">Belum ada isinya. 🌱</div>';return}
   let h="";
   if(tab==="photo"||tab==="video"){
     L.sort((a,b)=>b.created-a.created);
