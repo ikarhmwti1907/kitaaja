@@ -10,15 +10,15 @@ async function init(){
   if(typeof claude==="undefined"){note("File storage.js tidak ditemukan. Pastikan storage.js ikut diunggah ke GitHub, satu folder dengan index.html.");return}
   try{
     const c=await claude.use("db");
-    if(!c){note("Penyimpanan browser tidak bisa dipakai. Coba keluar dari mode penyamaran.");return}
+    if(!c){note("Penyimpanan online belum tersambung. Periksa SUPABASE_URL dan SUPABASE_KEY di storage.js.");return}
     db=c;
     try{const u=await claude.use("user");canEdit=!!(u&&u.canEdit())}catch(e){}
     $("#form").dataset.t="";
     assets=await claude.use("assets");
     const timer=setTimeout(()=>note("Memuat data terlalu lama. Coba muat ulang halaman."),10000);
     db.collection("items").onSnapshot(s=>{clearTimeout(timer);items=s.docs.map(d=>({id:d.id,...d.data()}));render()},
-      e=>{clearTimeout(timer);note("Data tidak bisa dibaca.")});
-  }catch(e){note("Penyimpanan browser tidak tersedia. Coba keluar dari mode penyamaran.")}
+      e=>{clearTimeout(timer);const m=String(e&&e.message||e);note("Data tidak bisa dibaca. "+(/^404/.test(m)?"Tabel belum dibuat: jalankan setup.sql di Supabase.":/^401|^403/.test(m)?"Kunci atau izin salah: periksa SUPABASE_KEY dan jalankan ulang setup.sql.":/Failed to fetch|NetworkError/i.test(m)?"Alamat tidak terjangkau: periksa SUPABASE_URL atau proyek Supabase sedang dijeda.":"Detail: "+m.slice(0,120)))});
+  }catch(e){note("Penyimpanan online belum tersambung. Periksa SUPABASE_URL dan SUPABASE_KEY di storage.js.")}
   render();
 }
 function renderTabs(){
@@ -28,7 +28,7 @@ function renderTabs(){
 async function add(data){
   if(!db){note("Hanya pemilik halaman yang bisa menambah data.");return false}
   try{await db.collection("items").add({...data,type:tab,created:Date.now()});note("");return true}
-  catch(e){note("Gagal menyimpan. Coba keluar dari mode penyamaran, atau ruang penyimpanan browser mungkin penuh.");return false}
+  catch(e){note("Gagal menyimpan. Periksa koneksi internet dan pengaturan Supabase.");return false}
 }
 async function upload(file){
   if(!assets){note("Upload hanya tersedia untuk pemilik/editor halaman.");return null}
@@ -59,7 +59,7 @@ function renderForm(){
       if(await add({title:t,artist:$("#b").value.trim(),link:safeUrl($("#c").value.trim())})){["a","b","c"].forEach(i=>$("#"+i).value="")}
     };
   }else if(tab==="plan"){
-    f.innerHTML=`<div class="bar"><label style="flex-basis:100%">Main apa / dengan siapa<input id="a"></label><label>Tanggal (hari otomatis)<input id="b" type="date"></label><label>Jam kumpul<input id="c" type="time"></label><label>Titik kumpul<input id="d" placeholder="Contoh: Lobi Mall Paris Van Java"></label><label>Tujuan / tempat main (opsional)<input id="e" placeholder="Contoh: Dago Dreampark"></label><button class="btn" id="go">Tambah jadwal</button></div>`;
+    f.innerHTML=`<div class="bar"><label style="flex-basis:100%">Main apa<input id="a"></label><label>Tanggal (hari otomatis)<input id="b" type="date"></label><label>Jam kumpul<input id="c" type="time"></label><label>Titik kumpul<input id="d" placeholder="Contoh: Lobi Mall Paris Van Java"></label><label>Tujuan / tempat main (opsional)<input id="e" placeholder="Contoh: Dago Dreampark"></label><button class="btn" id="go">Tambah jadwal</button></div>`;
     $("#go").onclick=async()=>{
       const t=$("#a").value.trim(),d=$("#b").value,tm=$("#c").value,mt=$("#d").value.trim();if(!t||!d||!tm||!mt){note("Isi kegiatan, tanggal, jam, dan titik kumpul.");return}
       if(await add({title:t,date:d,time:tm,meet:mt,place:$("#e").value.trim()})){["a","b","c","d","e"].forEach(i=>$("#"+i).value="")}
