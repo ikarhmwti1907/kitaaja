@@ -1,4 +1,4 @@
-const SUPABASE_URL = "https://qobqlwbethrbiucsview.supabase.co";  
+const SUPABASE_URL = "https://qobqlwbethrbiucsview.supabase.co";   
 const SUPABASE_KEY = "sb_publishable_1fNgYpue9FiB_DFnGmY0_g_vFft6Ugo";      
 
 (function () {
@@ -23,6 +23,7 @@ const SUPABASE_KEY = "sb_publishable_1fNgYpue9FiB_DFnGmY0_g_vFft6Ugo";
       cache[x.id] = x.data;
       const o = { id: x.id, ...x.data };
       if (x.data.assetId) o.url = STO + "/public/media/" + x.data.assetId;
+      if (Array.isArray(x.data.media)) o.media = x.data.media.map(m => ({ ...m, url: STO + "/public/media/" + m.id }));
       return o;
     });
   }
