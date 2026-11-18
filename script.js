@@ -59,7 +59,7 @@ function renderForm(){
       if(await add({title:t,artist:$("#b").value.trim(),link:safeUrl($("#c").value.trim())})){["a","b","c"].forEach(i=>$("#"+i).value="")}
     };
   }else if(tab==="plan"){
-    f.innerHTML=`<div class="bar"><label style="flex-basis:100%">Main apa / dengan siapa<input id="a" placeholder="Contoh: Main bareng Rina dan Dita"></label><label>Tanggal (hari otomatis)<input id="b" type="date"></label><label>Jam kumpul<input id="c" type="time"></label><label>Titik kumpul<input id="d" placeholder="Contoh: Lobi Mall Paris Van Java"></label><label>Tujuan / tempat main (opsional)<input id="e" placeholder="Contoh: Dago Dreampark"></label><button class="btn" id="go">Tambah jadwal</button></div>`;
+    f.innerHTML=`<div class="bar"><label style="flex-basis:100%">Main apa / dengan siapa<input id="a"></label><label>Tanggal (hari otomatis)<input id="b" type="date"></label><label>Jam kumpul<input id="c" type="time"></label><label>Titik kumpul<input id="d" placeholder="Contoh: Lobi Mall Paris Van Java"></label><label>Tujuan / tempat main (opsional)<input id="e" placeholder="Contoh: Dago Dreampark"></label><button class="btn" id="go">Tambah jadwal</button></div>`;
     $("#go").onclick=async()=>{
       const t=$("#a").value.trim(),d=$("#b").value,tm=$("#c").value,mt=$("#d").value.trim();if(!t||!d||!tm||!mt){note("Isi kegiatan, tanggal, jam, dan titik kumpul.");return}
       if(await add({title:t,date:d,time:tm,meet:mt,place:$("#e").value.trim()})){["a","b","c","d","e"].forEach(i=>$("#"+i).value="")}
