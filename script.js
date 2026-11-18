@@ -78,7 +78,7 @@ function render(){
   if(!$("#form").dataset.t||$("#form").dataset.t!==tab){renderForm();$("#form").dataset.t=tab}
   const L=items.filter(i=>i.type===tab);
   const el=$("#list");
-  if(!L.length){el.innerHTML='<div class="empty">Belum ada isinya. 🌱</div>';return}
+  if(!L.length){el.innerHTML='<div class="empty">Belum ada isinya.</div>';return}
   let h="";
   if(tab==="photo"||tab==="video"){
     L.sort((a,b)=>b.created-a.created);
